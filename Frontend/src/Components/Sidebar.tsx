@@ -18,7 +18,7 @@ import {
 import {
   LayoutDashboard,
   Users,
-  TrendingUp,
+  
   UsersRound,
   Settings,
   LogOut,
