@@ -1,0 +1,246 @@
+/* =====================================================
+   RESET & BASE
+===================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--primary-bg);
+  color: var(--text-base);
+}
+
+/* =====================================================
+   DEFAULT THEME (FALLBACK)
+===================================================== */
+:root {
+  /* Primary */
+  --primary: #6366f1;
+  --primary-light: #818cf8;
+  --primary-lighter: #c7d2fe;
+  --primary-dark: #4338ca;
+  --primary-bg: #f5f3ff;
+
+  /* Status */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --purple: #8b5cf6;
+
+  /* Text & Borders */
+  --text-base: #111827;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+
+  /* UI */
+  --card-bg: #ffffff;
+  --radius: 0.5rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* =====================================================
+   THEME VARIANTS
+===================================================== */
+
+/* 🟣 Royal Indigo */
+[data-theme="royal-indigo"] {
+  --primary: #6366f1;
+  --primary-light: #818cf8;
+  --primary-lighter: #c7d2fe;
+  --primary-dark: #4338ca;
+  --primary-bg: #f5f3ff;
+}
+
+/* 🟢 Emerald Glass */
+[data-theme="emerald-glass"] {
+  --primary: #10b981;
+  --primary-light: #34d399;
+  --primary-lighter: #a7f3d0;
+  --primary-dark: #059669;
+  --primary-bg: #ecfdf5;
+}
+
+/* 🟡 Sunset Glow */
+[data-theme="sunset-glow"] {
+  --primary: #f59e0b;
+  --primary-light: #fbbf24;
+  --primary-lighter: #fde68a;
+  --primary-dark: #d97706;
+  --primary-bg: #fffbeb;
+}
+
+/* 🔴 Crimson Rush */
+[data-theme="crimson-rush"] {
+  --primary: #ef4444;
+  --primary-light: #f87171;
+  --primary-lighter: #fecaca;
+  --primary-dark: #b91c1c;
+  --primary-bg: #fef2f2;
+}
+
+/* =====================================================
+   TYPOGRAPHY
+===================================================== */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  color: var(--text-base);
+}
+
+p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* =====================================================
+   LINKS
+===================================================== */
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--primary-dark);
+}
+
+/* =====================================================
+   BUTTONS
+===================================================== */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+
+button.primary {
+  background-color: var(--primary);
+  color: white;
+}
+
+button.primary:hover {
+  background-color: var(--primary-light);
+}
+
+button.secondary {
+  background-color: white;
+  border: 2px solid var(--primary);
+  color: var(--primary);
+}
+
+button.secondary:hover {
+  background-color: var(--primary);
+  color: white;
+}
+
+/* =====================================================
+   CARDS
+===================================================== */
+.card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* =====================================================
+   SIDEBAR
+===================================================== */
+.sidebar {
+  background-color: var(--card-bg);
+  border-right: 1px solid var(--border);
+}
+
+.sidebar a {
+  display: block;
+  padding: 12px;
+  border-radius: var(--radius);
+}
+
+.sidebar a.active {
+  background-color: var(--primary);
+  color: white;
+}
+
+/* =====================================================
+   TABLES
+===================================================== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+th {
+  font-weight: 600;
+  color: var(--text-base);
+}
+
+/* =====================================================
+   PROGRESS BAR
+===================================================== */
+.progress {
+  height: 12px;
+  background-color: var(--primary);
+  border-radius: 6px;
+}
+
+/* =====================================================
+   UTILITIES
+===================================================== */
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-primary {
+  color: var(--primary);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.rounded {
+  border-radius: var(--radius);
+}
+
+.shadow-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.shadow-md {
+  box-shadow: var(--shadow-md);
+}
+
+/* =====================================================
+   SCROLLBAR
+===================================================== */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--primary-bg);
+}
+
