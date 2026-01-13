@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { 
-  Users, Trash2, Plus, Layers, CheckCircle, ChevronDown, ChevronUp, 
-  Target, TrendingUp, X, Settings
+import {
+  Users, Layers, CheckCircle, ChevronDown, ChevronUp,
+  Target, TrendingUp, Check, X
 } from "lucide-react";
-import { Typography, useMediaQuery, useTheme } from "@mui/material";
+import { Typography, useMediaQuery, useTheme, Button, Box, Chip } from "@mui/material";
+import { useProfile } from "../Components/ProfileContext";
 
 interface Member { _id: string; name: string; role: string; target: number; }
 interface Team { _id: string; teamName: string; department: string; members: Member[]; }
+interface Lead { _id: string; name: string; email: string; status: string; assignedTo: string; }
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/api/sales-teams`;
 
@@ -15,16 +17,19 @@ const SalesTeamPage: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isTablet = useMediaQuery(theme.breakpoints.down("md"));
+  const { user } = useProfile();
 
   const [teams, setTeams] = useState<Team[]>([]);
-  const [departments, setDepartments] = useState<string[]>(["Direct Sales", "Lead Generation", "Enterprise B2B"]);
-  const [isCustomDept, setIsCustomDept] = useState(false);
-  const [customDeptName, setCustomDeptName] = useState("");
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [expandedTeams, setExpandedTeams] = useState<{ [key: string]: boolean }>({});
   const [notification, setNotification] = useState<string | null>(null);
-  const [newTeam, setNewTeam] = useState({ name: "", dept: "" });
-  const [memberInputs, setMemberInputs] = useState<{ [key: string]: { name?: string; role?: string; target?: string } }>({});
+
+  // Check if user is not an admin (show complete buttons for all non-admin users)
+  const isTeamMember = user?.role !== 'admin';
+
+  // Debug logging
+  console.log('User role:', user?.role);
+  console.log('isTeamMember:', isTeamMember);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -44,90 +49,63 @@ const SalesTeamPage: React.FC = () => {
     }
   };
 
+  const fetchLeads = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/leads?all=true`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data?.leads) setLeads(res.data.leads);
+    } catch (err) {
+      console.error(err);
+      showToast("Error fetching leads");
+    }
+  };
+
+  const completeLead = async (leadId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/leads/${leadId}`, {
+        status: "Converted"
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 200) {
+        showToast("Lead completed successfully!");
+        fetchLeads(); // Refresh leads
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error completing lead");
+    }
+  };
+
   useEffect(() => {
     fetchTeams();
+    fetchLeads();
   }, []);
-
-  const handleCreateTeam = async () => {
-    const finalDept = isCustomDept ? customDeptName : newTeam.dept;
-    if (!newTeam.name || !finalDept) return;
-
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.post(`${API_BASE}/create`, {
-        teamName: newTeam.name,
-        department: finalDept,
-        members: []
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setTeams([...teams, res.data]);
-      if (isCustomDept && !departments.includes(customDeptName)) {
-        setDepartments([...departments, customDeptName]);
-      }
-      setNewTeam({ name: "", dept: "" });
-      setIsCustomDept(false);
-      setShowCreateForm(false);
-      showToast("Team created successfully!");
-    } catch (err) {
-      console.error(err);
-      showToast("Error creating team");
-    }
-  };
-
-  const handleAddMember = async (teamId: string) => {
-    const inputs = memberInputs[teamId];
-    if (!inputs?.name || !inputs?.role || !inputs?.target) return;
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.post(`${API_BASE}/${teamId}/member`, {
-        name: inputs.name,
-        role: inputs.role,
-        target: Number(inputs.target)
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setTeams(teams.map(t => t._id === teamId ? res.data : t));
-      setMemberInputs({ ...memberInputs, [teamId]: {} });
-      showToast("Member added successfully!");
-    } catch (err) {
-      console.error(err);
-      showToast("Error adding member");
-    }
-  };
-
-  const handleDeleteMember = async (teamId: string, memberId: string) => {
-    if (!window.confirm("Remove this member?")) return;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`${API_BASE}/${teamId}/member/${memberId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setTeams(teams.map(t => t._id === teamId ? { ...t, members: t.members.filter(m => m._id !== memberId) } : t));
-      showToast("Member removed.");
-    } catch (err) {
-      console.error(err);
-      showToast("Error deleting member");
-    }
-  };
-
-  const handleDeleteTeam = async (teamId: string) => {
-    if (!window.confirm("Delete this team?")) return;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`${API_BASE}/${teamId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setTeams(teams.filter(t => t._id !== teamId));
-      showToast("Team deleted successfully!");
-    } catch (err) {
-      console.error(err);
-      showToast("Error deleting team");
-    }
-  };
 
   const totalMembers = teams.reduce((acc, t) => acc + t.members.length, 0);
   const totalTargetValue = teams.reduce((acc, t) => acc + t.members.reduce((mAcc, m) => mAcc + m.target, 0), 0);
+
+  const getAssignedLeads = (memberId: string) => {
+    return leads.filter(lead => lead.assignedTo === memberId);
+  };
+
+  const getCompletedLeads = (memberId: string) => {
+    return leads.filter(lead => lead.assignedTo === memberId && lead.status === "Converted");
+  };
+
+  const getCompletionPercentage = (memberId: string, target: number) => {
+    const completed = getCompletedLeads(memberId).length;
+    return target > 0 ? Math.round((completed / target) * 100) : 0;
+  };
+
+  const getPerformanceColor = (percentage: number) => {
+    if (percentage < 50) return "#dc2626"; // Red
+    if (percentage < 100) return "#ea580c"; // Orange
+    return "#059669"; // Green
+  };
 
   // Responsive styles
   const containerStyle: React.CSSProperties = {
@@ -155,41 +133,7 @@ const SalesTeamPage: React.FC = () => {
     margin: "0 auto 40px auto"
   };
 
-  const createBtnMain: React.CSSProperties = {
-    border: "none",
-    padding: isMobile ? "8px 16px" : "10px 24px",
-    borderRadius: "10px",
-    fontWeight: 700,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    fontSize: isMobile ? "14px" : "16px",
-    width: isMobile ? "100%" : "auto",
-    justifyContent: "center"
-  };
 
-  const topCardStyle: React.CSSProperties = {
-    maxWidth: "1100px",
-    margin: "0 auto 25px auto",
-    padding: isMobile ? "16px" : "25px"
-  };
-
-  const topInputContainerStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: isMobile ? "column" : "row",
-    gap: isMobile ? "12px" : "15px"
-  };
-
-  const topInput: React.CSSProperties = {
-    flex: 1,
-    padding: isMobile ? "10px" : "12px",
-    borderRadius: "8px",
-    border: "1px solid var(--border)",
-    background: "var(--card-bg)",
-    color: "var(--text-base)",
-    fontSize: isMobile ? "14px" : "16px"
-  };
 
   const teamCard: React.CSSProperties = {
     marginBottom: "15px",
@@ -214,31 +158,10 @@ const SalesTeamPage: React.FC = () => {
     width: isMobile ? "100%" : "auto"
   };
 
-  const delTeamBtn: React.CSSProperties = {
-    background: "var(--primary-bg)",
-    border: "1px solid var(--border)",
-    color: "var(--danger)",
-    padding: isMobile ? "6px 12px" : "6px 14px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "12px",
-    fontWeight: 600,
-    width: isMobile ? "100%" : "auto"
-  };
-
   const tableContainerStyle: React.CSSProperties = {
     padding: isMobile ? "12px" : "20px",
     borderTop: "1px solid var(--border)",
     overflowX: "auto"
-  };
-
-  const inlineInput: React.CSSProperties = {
-    width: isMobile ? "100%" : "90%",
-    padding: isMobile ? "6px" : "8px",
-    borderRadius: "6px",
-    border: "1px solid var(--border)",
-    background: "var(--card-bg)",
-    fontSize: isMobile ? "13px" : "14px"
   };
 
   return (
@@ -257,25 +180,17 @@ const SalesTeamPage: React.FC = () => {
       {/* HEADER */}
       <div style={headerContainerStyle}>
         <div>
-          <Typography 
-            variant="h4" 
+          <Typography
+            variant="h4"
             fontWeight={800}
             sx={{ fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' } }}
           >
             Sales Squad <span style={{ color: 'var(--primary)' }}>Commander</span>
           </Typography>
           <p className="text-muted" style={{ fontSize: isMobile ? "13px" : "14px" }}>
-            Manage your teams and custom departments.
+            View your teams and members managed by admins.
           </p>
         </div>
-        <button 
-          onClick={() => setShowCreateForm(!showCreateForm)} 
-          className="primary" 
-          style={showCreateForm ? { ...createBtnMain, backgroundColor: "var(--danger)" } : createBtnMain}
-        >
-          {showCreateForm ? <X size={18}/> : <Plus size={18}/>}
-          {showCreateForm ? "Cancel" : "Create Squad"}
-        </button>
       </div>
 
       {/* STAT CARDS */}
@@ -300,58 +215,7 @@ const SalesTeamPage: React.FC = () => {
         />
       </div>
 
-      {/* CREATE FORM */}
-      {showCreateForm && (
-        <div className="card shadow-md" style={topCardStyle}>
-          <h2 style={{ 
-            fontSize: isMobile ? "16px" : "18px", 
-            marginBottom: "15px", 
-            display: "flex", 
-            alignItems: "center", 
-            gap: "10px" 
-          }}>
-            <Settings size={18} /> Initialize New Team
-          </h2>
-          <div style={topInputContainerStyle}>
-            <input 
-              style={topInput} 
-              placeholder="Team Name..." 
-              value={newTeam.name} 
-              onChange={e => setNewTeam({...newTeam, name: e.target.value})} 
-            />
-            
-            {!isCustomDept ? (
-              <select 
-                style={topInput} 
-                onChange={e => e.target.value === "ADD_NEW" ? setIsCustomDept(true) : setNewTeam({ ...newTeam, dept: e.target.value })}
-              >
-                <option value="">Select Department</option>
-                {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-                <option value="ADD_NEW" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>+ Add Custom Dept</option>
-              </select>
-            ) : (
-              <input 
-                style={topInput} 
-                placeholder="Type Dept Name..." 
-                autoFocus 
-                onChange={e => setCustomDeptName(e.target.value)} 
-              />
-            )}
 
-            <button 
-              onClick={handleCreateTeam} 
-              className="primary" 
-              style={{ 
-                padding: isMobile ? "10px 16px" : "10px 24px",
-                fontSize: isMobile ? "14px" : "16px",
-                width: isMobile ? "100%" : "auto"
-              }}
-            >
-              Create
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* TEAMS LIST */}
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
@@ -371,28 +235,22 @@ const SalesTeamPage: React.FC = () => {
                   {team.teamName ? team.teamName.charAt(0).toUpperCase() : 'T'}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <h3 style={{ 
-                    margin: 0, 
-                    fontSize: isMobile ? "15px" : "16px" 
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: isMobile ? "15px" : "16px"
                   }}>
                     {team.teamName}
                   </h3>
-                  <span style={{ 
-                    fontSize: isMobile ? "11px" : "12px", 
-                    color: "var(--primary)", 
-                    fontWeight: 700 
+                  <span style={{
+                    fontSize: isMobile ? "11px" : "12px",
+                    color: "var(--primary)",
+                    fontWeight: 700
                   }}>
                     {team.department}
                   </span>
                 </div>
                 {!isMobile && (expandedTeams[team._id] ? <ChevronUp size={16}/> : <ChevronDown size={16}/> )}
               </div>
-              <button 
-                onClick={(e) => {e.stopPropagation(); handleDeleteTeam(team._id)}} 
-                style={delTeamBtn}
-              >
-                Delete
-              </button>
             </div>
 
             {expandedTeams[team._id] && (
@@ -400,148 +258,235 @@ const SalesTeamPage: React.FC = () => {
                 {isMobile ? (
                   // Mobile Card View
                   <div>
-                    {/* Add Member Form */}
-                    <div style={{
-                      background: "var(--primary-bg)",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      marginBottom: "12px"
-                    }}>
-                      <h4 style={{ margin: "0 0 10px 0", fontSize: "14px" }}>Add New Member</h4>
-                      <input 
-                        style={{ ...inlineInput, marginBottom: "8px" }} 
-                        placeholder="Name"
-                        value={memberInputs[team._id]?.name || ""} 
-                        onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], name: e.target.value}})} 
-                      />
-                      <input 
-                        style={{ ...inlineInput, marginBottom: "8px" }} 
-                        placeholder="Role"
-                        value={memberInputs[team._id]?.role || ""} 
-                        onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], role: e.target.value}})} 
-                      />
-                      <input 
-                        style={{ ...inlineInput, marginBottom: "8px" }} 
-                        placeholder="Target"
-                        value={memberInputs[team._id]?.target || ""} 
-                        onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], target: e.target.value}})} 
-                      />
-                      <button 
-                        onClick={() => handleAddMember(team._id)} 
-                        className="primary" 
-                        style={{ padding: "8px 16px", width: "100%", fontSize: "14px" }}
-                      >
-                        Add Member
-                      </button>
-                    </div>
-
                     {/* Members List */}
-                    {team.members.map(m => (
-                      <div 
-                        key={m._id} 
-                        style={{
-                          background: "var(--card-bg)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          padding: "12px",
-                          marginBottom: "8px"
-                        }}
-                      >
-                        <div style={{ marginBottom: "8px" }}>
-                          <strong style={{ fontSize: "14px" }}>{m.name}</strong>
+                    {team.members.map(m => {
+                      const assignedLeads = getAssignedLeads(m._id);
+                      const completedCount = getCompletedLeads(m._id).length;
+                      const percentage = getCompletionPercentage(m._id, m.target);
+                      const performanceColor = getPerformanceColor(percentage);
+
+                      return (
+                        <div
+                          key={m._id}
+                          style={{
+                            background: "var(--card-bg)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "8px",
+                            padding: "12px",
+                            marginBottom: "8px"
+                          }}
+                        >
+                          <div style={{ marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <strong style={{ fontSize: "14px" }}>{m.name}</strong>
+                            <Chip
+                              label={`${percentage}%`}
+                              size="small"
+                              sx={{
+                                backgroundColor: performanceColor,
+                                color: "white",
+                                fontWeight: 700,
+                                fontSize: "12px"
+                              }}
+                            />
+                          </div>
+                          <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                            Role: {m.role}
+                          </div>
+                          <div style={{ marginBottom: "8px" }}>
+                            <span style={{ color: "var(--success)", fontWeight: 700, fontSize: "14px" }}>
+                              Target: {m.target} | Completed: {completedCount}/{assignedLeads.length}
+                            </span>
+                          </div>
+
+                          {/* Assigned Leads */}
+                          {assignedLeads.length > 0 && (
+                            <div style={{ marginTop: "8px" }}>
+                              <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "4px", color: "var(--primary)" }}>
+                                Assigned Leads ({assignedLeads.length}):
+                              </div>
+                              {assignedLeads.map(lead => (
+                                <div
+                                  key={lead._id}
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    padding: "6px",
+                                    background: "#f9f9f9",
+                                    borderRadius: "4px",
+                                    marginBottom: "4px",
+                                    fontSize: "12px"
+                                  }}
+                                >
+                                  <span>{lead.name} - {lead.status}</span>
+                                  {lead.status !== "Converted" && isTeamMember && (
+                                    <Button
+                                      size="small"
+                                      variant="contained"
+                                      onClick={() => completeLead(lead._id)}
+                                      sx={{
+                                        minWidth: "auto",
+                                        padding: "2px 8px",
+                                        fontSize: "10px",
+                                        backgroundColor: "#059669",
+                                        "&:hover": { backgroundColor: "#047857" }
+                                      }}
+                                    >
+                                      Complete
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "4px" }}>
-                          Role: {m.role}
-                        </div>
-                        <div style={{ 
-                          display: "flex", 
-                          justifyContent: "space-between", 
-                          alignItems: "center",
-                          marginTop: "8px"
-                        }}>
-                          <span style={{ color: "var(--success)", fontWeight: 700, fontSize: "14px" }}>
-                            Target: {m.target}
-                          </span>
-                          <Trash2 
-                            size={18} 
-                            color="var(--danger)" 
-                            onClick={() => handleDeleteMember(team._id, m._id)} 
-                            style={{cursor:'pointer'}}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   // Desktop Table View
-                  <table style={{ width: "100%", minWidth: "600px" }}>
-                    <thead>
-                      <tr>
-                        <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Name</th>
-                        <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Role</th>
-                        <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Target</th>
-                        <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr style={{ background: "var(--primary-bg)" }}>
-                        <td>
-                          <input 
-                            style={inlineInput} 
-                            placeholder="Name"
-                            value={memberInputs[team._id]?.name || ""} 
-                            onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], name: e.target.value}})} 
-                          />
-                        </td>
-                        <td>
-                          <input 
-                            style={inlineInput} 
-                            placeholder="Role"
-                            value={memberInputs[team._id]?.role || ""} 
-                            onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], role: e.target.value}})} 
-                          />
-                        </td>
-                        <td>
-                          <input 
-                            style={inlineInput} 
-                            placeholder="Target"
-                            value={memberInputs[team._id]?.target || ""} 
-                            onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], target: e.target.value}})} 
-                          />
-                        </td>
-                        <td>
-                          <button 
-                            onClick={() => handleAddMember(team._id)} 
-                            className="primary" 
-                            style={{ padding: "6px 12px", fontSize: isTablet ? "13px" : "14px" }}
-                          >
-                            Add
-                          </button>
-                        </td>
-                      </tr>
-                      {team.members.map(m => (
-                        <tr key={m._id}>
-                          <td style={{ fontSize: isTablet ? "13px" : "14px" }}>{m.name}</td>
-                          <td style={{ fontSize: isTablet ? "13px" : "14px" }}>{m.role}</td>
-                          <td style={{ 
-                            color: "var(--success)", 
-                            fontWeight: 700,
-                            fontSize: isTablet ? "13px" : "14px"
-                          }}>
-                            {m.target}
-                          </td>
-                          <td>
-                            <Trash2 
-                              size={16} 
-                              color="var(--danger)" 
-                              onClick={() => handleDeleteMember(team._id, m._id)} 
-                              style={{cursor:'pointer'}}
-                            />
-                          </td>
+                  <div>
+                    <table style={{ width: "100%", minWidth: "600px", marginBottom: "20px" }}>
+                      <thead>
+                        <tr>
+                          <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Name</th>
+                          <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Role</th>
+                          <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Target</th>
+                          <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Progress</th>
+                          <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {team.members.map(m => {
+                          const assignedLeads = getAssignedLeads(m._id);
+                          const completedCount = getCompletedLeads(m._id).length;
+                          const percentage = getCompletionPercentage(m._id, m.target);
+                          const performanceColor = getPerformanceColor(percentage);
+
+                          return (
+                            <tr key={m._id}>
+                              <td style={{ fontSize: isTablet ? "13px" : "14px" }}>{m.name}</td>
+                              <td style={{ fontSize: isTablet ? "13px" : "14px" }}>{m.role}</td>
+                              <td style={{
+                                color: "var(--success)",
+                                fontWeight: 700,
+                                fontSize: isTablet ? "13px" : "14px"
+                              }}>
+                                {m.target}
+                              </td>
+                              <td style={{ fontSize: isTablet ? "13px" : "14px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <span>{completedCount}/{assignedLeads.length}</span>
+                                  <Chip
+                                    label={`${percentage}%`}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: performanceColor,
+                                      color: "white",
+                                      fontWeight: 700,
+                                      fontSize: "11px",
+                                      height: "20px"
+                                    }}
+                                  />
+                                </div>
+                              </td>
+                              <td style={{ fontSize: isTablet ? "13px" : "14px" }}>
+                                {assignedLeads.length > 0 && (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => {
+                                      // Toggle showing leads for this member
+                                      const memberKey = `show-leads-${m._id}`;
+                                      const currentValue = (window as any)[memberKey] || false;
+                                      (window as any)[memberKey] = !currentValue;
+                                      // Force re-render by updating state
+                                      setExpandedTeams(prev => ({ ...prev }));
+                                    }}
+                                    sx={{
+                                      fontSize: "11px",
+                                      padding: "4px 8px",
+                                      minWidth: "auto"
+                                    }}
+                                  >
+                                    View Leads
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* Show leads for members when View Leads is clicked */}
+                    {team.members.map(m => {
+                      const assignedLeads = getAssignedLeads(m._id);
+                      const memberKey = `show-leads-${m._id}`;
+                      const showLeads = (window as any)[memberKey] || false;
+
+                      if (!showLeads || assignedLeads.length === 0) return null;
+
+                      return (
+                        <div key={`leads-${m._id}`} style={{
+                          background: "var(--card-bg)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                          padding: "16px",
+                          marginBottom: "16px"
+                        }}>
+                          <h4 style={{
+                            margin: "0 0 12px 0",
+                            fontSize: "14px",
+                            color: "var(--primary)"
+                          }}>
+                            {m.name}'s Assigned Leads:
+                          </h4>
+                          <div style={{ display: "grid", gap: "8px" }}>
+                            {assignedLeads.map(lead => (
+                              <div
+                                key={lead._id}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "8px 12px",
+                                  background: lead.status === "Converted" ? "#f0fdf4" : "#fef3c7",
+                                  border: `1px solid ${lead.status === "Converted" ? "#bbf7d0" : "#fde68a"}`,
+                                  borderRadius: "6px",
+                                  fontSize: "13px"
+                                }}
+                              >
+                                <div>
+                                  <strong>{lead.name}</strong> - {lead.status}
+                                  {lead.status === "Converted" && (
+                                    <span style={{ color: "var(--success)", marginLeft: "8px", fontSize: "11px" }}>
+                                      ✓ Completed
+                                    </span>
+                                  )}
+                                </div>
+                                {lead.status !== "Converted" && isTeamMember && (
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    onClick={() => completeLead(lead._id)}
+                                    sx={{
+                                      fontSize: "11px",
+                                      padding: "4px 12px",
+                                      backgroundColor: "#059669",
+                                      "&:hover": { backgroundColor: "#047857" }
+                                    }}
+                                  >
+                                    Complete
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}

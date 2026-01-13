@@ -13,27 +13,32 @@ import * as XLSX from "xlsx";
 const LeadsPage: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  
+
   const [leads, setLeads] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false); 
-  const [showEmailView, setShowEmailView] = useState(false); 
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEmailView, setShowEmailView] = useState(false);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [editingLead, setEditingLead] = useState<any | null>(null);
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
 
   const token = localStorage.getItem("token");
   const API_URL = import.meta.env.VITE_API_URL || "https://digiunix-ai-crm-model.onrender.com";
 
   const [newLead, setNewLead] = useState({
-    name: "", email: "", phone: "", source: "Website", status: "New"
+    name: "", email: "", phone: "", source: "Website", status: "New", assignedTo: ""
   });
 
   const fetchLeads = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/leads`, {
+      const isAdmin = user?.role === "admin";
+      const url = isAdmin ? `${API_URL}/api/leads?all=true` : `${API_URL}/api/leads`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -41,7 +46,28 @@ const LeadsPage: React.FC = () => {
     } catch (err) { console.error(err); }
   };
 
-  useEffect(() => { fetchLeads(); }, []);
+  const fetchTeams = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/sales-teams`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data) {
+        setTeams(data);
+        const allMembers = data.flatMap((team: any) => team.members);
+        setMembers(allMembers);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    fetchLeads();
+    fetchTeams();
+  }, [user]);
 
   const handleArchiveToggle = async (id: string, currentStatus: string) => {
     const isArchived = currentStatus === "Archived";
@@ -89,8 +115,8 @@ const LeadsPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure?")) return;
     try {
-      const res = await fetch(`${API_URL}/api/leads/${id}`, { 
-        method: "DELETE", headers: { Authorization: `Bearer ${token}` } 
+      const res = await fetch(`${API_URL}/api/leads/${id}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         setLeads(leads.filter(l => l._id !== id));
@@ -99,17 +125,23 @@ const LeadsPage: React.FC = () => {
     } catch (err) { console.error(err); }
   };
 
+  const handleAssignLead = async (leadId: string, memberId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/leads/${leadId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ assignedTo: memberId })
+      });
+      if (res.ok) {
+        fetchLeads();
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const handleCloseAddModal = () => {
     setShowAddModal(false);
     setEditingLead(null);
-    setNewLead({ name: "", email: "", phone: "", source: "Website", status: "New" });
-  };
-
-  const handleEditFromView = () => {
-    setEditingLead(selectedLead);
-    setNewLead(selectedLead);
-    setShowViewModal(false);
-    setShowAddModal(true);
+    setNewLead({ name: "", email: "", phone: "", source: "Website", status: "New", assignedTo: "" });
   };
 
   const exportToExcel = () => {
@@ -147,7 +179,8 @@ const LeadsPage: React.FC = () => {
     );
 
   const handleCopy = () => {
-    const emailText = `Lead ID: ${selectedLead?._id}\nName: ${selectedLead?.name}\nEmail: ${selectedLead?.email}\nPhone: ${selectedLead?.phone}\nSource: ${selectedLead?.source}\nStatus: ${selectedLead?.status}`;
+    const assignedToName = selectedLead?.assignedTo ? members.find(m => m._id === selectedLead.assignedTo)?.name || "Unknown" : "Unassigned";
+    const emailText = `Lead ID: ${selectedLead?._id}\nName: ${selectedLead?.name}\nEmail: ${selectedLead?.email}\nPhone: ${selectedLead?.phone}\nSource: ${selectedLead?.source}\nStatus: ${selectedLead?.status}\nAssigned To: ${assignedToName}`;
     navigator.clipboard.writeText(emailText);
     alert("Copied to clipboard!");
   };
@@ -169,29 +202,17 @@ const LeadsPage: React.FC = () => {
           Leads <span style={{color: 'var(--primary)'}}>Management</span>
         </Typography>
         <Stack direction="row" spacing={{ xs: 1, sm: 2 }} flexWrap="wrap">
-          <Button 
-            variant="text" 
-            onClick={exportToExcel} 
-            startIcon={<FileSpreadsheet size={18} />} 
-            sx={{ 
+          <Button
+            variant="text"
+            onClick={exportToExcel}
+            startIcon={<FileSpreadsheet size={18} />}
+            sx={{
               textTransform: 'none',
               fontSize: { xs: '0.8rem', sm: '0.875rem' },
               minWidth: { xs: 'auto', sm: 'auto' }
             }}
           >
             {isMobile ? "Export" : "Export"}
-          </Button>
-          <Button 
-            variant="contained" 
-            startIcon={<Plus size={18} />} 
-            onClick={() => setShowAddModal(true)} 
-            sx={{ 
-              textTransform: 'none', 
-              borderRadius: '8px',
-              fontSize: { xs: '0.8rem', sm: '0.875rem' }
-            }}
-          >
-            {isMobile ? "New" : "New Lead"}
           </Button>
         </Stack>
       </Stack>
@@ -266,6 +287,7 @@ const LeadsPage: React.FC = () => {
                 <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>Lead</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>Contact</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>Assigned To</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -289,36 +311,51 @@ const LeadsPage: React.FC = () => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip 
-                      label={lead.status} 
-                      size="small" 
-                      sx={{ 
-                        ...getStatusStyle(lead.status), 
-                        fontWeight: 600, 
+                    <Chip
+                      label={lead.status}
+                      size="small"
+                      sx={{
+                        ...getStatusStyle(lead.status),
+                        fontWeight: 600,
                         borderRadius: "4px",
                         fontSize: { xs: '0.7rem', md: '0.75rem' }
-                      }} 
+                      }}
                     />
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      size="small"
+                      value={lead.assignedTo || ""}
+                      onChange={(e) => handleAssignLead(lead._id, e.target.value)}
+                      sx={{
+                        minWidth: '120px',
+                        fontSize: { xs: '0.7rem', md: '0.75rem' },
+                        '& .MuiSelect-select': {
+                          padding: '4px 8px'
+                        }
+                      }}
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>Unassigned</em>
+                      </MenuItem>
+                      {members.map((member: any) => (
+                        <MenuItem key={member._id} value={member._id}>
+                          {member.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={{ xs: 0.5, md: 1 }} justifyContent="flex-end">
-                      <IconButton 
-                        size="small" 
+                      <IconButton
+                        size="small"
                         onClick={() => { setSelectedLead(lead); setShowEmailView(false); setShowViewModal(true); }}
                       >
                         <Eye size={16} />
                       </IconButton>
-                      <IconButton 
-                        size="small" 
-                        onClick={() => { setEditingLead(lead); setNewLead(lead); setShowAddModal(true); }}
-                      >
-                        <Edit3 size={16} />
-                      </IconButton>
                       <IconButton size="small" onClick={() => window.open(`tel:${lead.phone}`)}>
                         <Phone size={16} />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDelete(lead._id)} color="error">
-                        <Trash2 size={16} />
                       </IconButton>
                       <IconButton size="small" onClick={() => handleArchiveToggle(lead._id, lead.status)}>
                         {lead.status === "Archived" ? <RotateCcw size={16} color="#059669" /> : <Archive size={16} />}
@@ -357,36 +394,22 @@ const LeadsPage: React.FC = () => {
                   </Box>
 
                   <Stack direction="row" spacing={1} flexWrap="wrap">
-                    <IconButton 
-                      size="small" 
+                    <IconButton
+                      size="small"
                       sx={{ bgcolor: '#f5f5f5' }}
                       onClick={() => { setSelectedLead(lead); setShowEmailView(false); setShowViewModal(true); }}
                     >
                       <Eye size={16} />
                     </IconButton>
-                    <IconButton 
-                      size="small" 
-                      sx={{ bgcolor: '#f5f5f5' }}
-                      onClick={() => { setEditingLead(lead); setNewLead(lead); setShowAddModal(true); }}
-                    >
-                      <Edit3 size={16} />
-                    </IconButton>
-                    <IconButton 
-                      size="small" 
+                    <IconButton
+                      size="small"
                       sx={{ bgcolor: '#f5f5f5' }}
                       onClick={() => window.open(`tel:${lead.phone}`)}
                     >
                       <Phone size={16} />
                     </IconButton>
-                    <IconButton 
-                      size="small" 
-                      sx={{ bgcolor: '#ffebee' }}
-                      onClick={() => handleDelete(lead._id)}
-                    >
-                      <Trash2 size={16} color="#dc2626" />
-                    </IconButton>
-                    <IconButton 
-                      size="small" 
+                    <IconButton
+                      size="small"
                       sx={{ bgcolor: '#f5f5f5' }}
                       onClick={() => handleArchiveToggle(lead._id, lead.status)}
                     >
@@ -479,9 +502,9 @@ const LeadsPage: React.FC = () => {
                   </Box>
                 </Stack>
 
-                <Stack 
-                  direction={{ xs: 'column', sm: 'row' }} 
-                  spacing={3} 
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={3}
                   mb={6}
                 >
                   <Box flex={1}>
@@ -493,30 +516,36 @@ const LeadsPage: React.FC = () => {
                   <Box flex={1}>
                     <Typography variant="caption" fontWeight={700} color="text.secondary">STATUS</Typography>
                     <Box mt={0.5}>
-                      <Chip 
-                        label={selectedLead?.status} 
-                        size="small" 
-                        sx={{ 
-                          ...getStatusStyle(selectedLead?.status), 
+                      <Chip
+                        label={selectedLead?.status}
+                        size="small"
+                        sx={{
+                          ...getStatusStyle(selectedLead?.status),
                           fontWeight: 600,
                           fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                        }} 
+                        }}
                       />
                     </Box>
                   </Box>
+                  <Box flex={1}>
+                    <Typography variant="caption" fontWeight={700} color="text.secondary">ASSIGNED TO</Typography>
+                    <Typography variant="body1" sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+                      {selectedLead?.assignedTo ? members.find(m => m._id === selectedLead.assignedTo)?.name || "Unknown" : "Unassigned"}
+                    </Typography>
+                  </Box>
                 </Stack>
 
-                <Stack 
-                  direction={{ xs: 'column', sm: 'row' }} 
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
                   spacing={1.5}
                   flexWrap="wrap"
                 >
-                  <Button 
-                    variant="contained" 
+                  <Button
+                    variant="contained"
                     fullWidth={isMobile}
-                    onClick={() => setShowEmailView(true)} 
-                    sx={{ 
-                      textTransform: 'none', 
+                    onClick={() => setShowEmailView(true)}
+                    sx={{
+                      textTransform: 'none',
                       bgcolor: '#4285f4',
                       flex: { xs: 'none', sm: 1 },
                       fontSize: { xs: '0.8rem', sm: '0.875rem' }
@@ -524,25 +553,25 @@ const LeadsPage: React.FC = () => {
                   >
                     View More
                   </Button>
-                  <Button 
-                    variant="contained" 
+                  <Button
+                    variant="contained"
                     fullWidth={isMobile}
-                    onClick={handleEditFromView} 
-                    sx={{ 
-                      textTransform: 'none', 
-                      bgcolor: '#94a3b8',
+                    onClick={() => { setEditingLead(selectedLead); setNewLead(selectedLead); setShowAddModal(true); setShowViewModal(false); }}
+                    sx={{
+                      textTransform: 'none',
+                      bgcolor: '#ff9800',
                       flex: { xs: 'none', sm: 1 },
                       fontSize: { xs: '0.8rem', sm: '0.875rem' }
                     }}
                   >
                     Edit Lead
                   </Button>
-                  <Button 
-                    variant="contained" 
+                  <Button
+                    variant="contained"
                     fullWidth={isMobile}
-                    onClick={() => handleDelete(selectedLead?._id)} 
-                    sx={{ 
-                      textTransform: 'none', 
+                    onClick={() => handleDelete(selectedLead?._id)}
+                    sx={{
+                      textTransform: 'none',
                       bgcolor: '#94a3b8',
                       flex: { xs: 'none', sm: 1 },
                       fontSize: { xs: '0.8rem', sm: '0.875rem' }
@@ -550,13 +579,13 @@ const LeadsPage: React.FC = () => {
                   >
                     Delete Lead
                   </Button>
-                  
-                  <Button 
-                    variant="contained" 
+
+                  <Button
+                    variant="contained"
                     fullWidth={isMobile}
-                    onClick={() => handleArchiveToggle(selectedLead?._id, selectedLead?.status)} 
-                    sx={{ 
-                      textTransform: 'none', 
+                    onClick={() => handleArchiveToggle(selectedLead?._id, selectedLead?.status)}
+                    sx={{
+                      textTransform: 'none',
                       bgcolor: selectedLead?.status === "Archived" ? '#059669' : '#f97316',
                       flex: { xs: 'none', sm: 1 },
                       fontSize: { xs: '0.8rem', sm: '0.875rem' }
@@ -568,23 +597,26 @@ const LeadsPage: React.FC = () => {
               </>
             ) : (
               <Box>
-                <Box sx={{ 
-                  p: { xs: 2, sm: 3 }, 
-                  bgcolor: '#f8f9fa', 
-                  borderRadius: '8px', 
-                  mb: 3, 
+                <Box sx={{
+                  p: { xs: 2, sm: 3 },
+                  bgcolor: '#f8f9fa',
+                  borderRadius: '8px',
+                  mb: 3,
                   border: '1px solid #ddd',
                   overflowX: 'auto'
                 }}>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      fontFamily: 'monospace', 
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontFamily: 'monospace',
                       whiteSpace: 'pre-line',
                       fontSize: { xs: '0.75rem', sm: '0.875rem' }
                     }}
                   >
-                    {`Lead ID: ${selectedLead?._id}\nName: ${selectedLead?.name}\nEmail: ${selectedLead?.email}\nPhone: ${selectedLead?.phone}\nSource: ${selectedLead?.source}\nStatus: ${selectedLead?.status}`}
+                    {(() => {
+                      const assignedToName = selectedLead?.assignedTo ? members.find(m => m._id === selectedLead.assignedTo)?.name || "Unknown" : "Unassigned";
+                      return `Lead ID: ${selectedLead?._id}\nName: ${selectedLead?.name}\nEmail: ${selectedLead?.email}\nPhone: ${selectedLead?.phone}\nSource: ${selectedLead?.source}\nStatus: ${selectedLead?.status}\nAssigned To: ${assignedToName}`;
+                    })()}
                   </Typography>
                 </Box>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -688,9 +720,9 @@ const LeadsPage: React.FC = () => {
 
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
-              <Select 
-                label="Status" 
-                value={newLead.status} 
+              <Select
+                label="Status"
+                value={newLead.status}
                 onChange={e => setNewLead({ ...newLead, status: e.target.value })}
                 sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}
               >
@@ -700,7 +732,22 @@ const LeadsPage: React.FC = () => {
               </Select>
             </FormControl>
 
-            <Button 
+            <FormControl fullWidth size="small">
+              <InputLabel>Assigned To</InputLabel>
+              <Select
+                label="Assigned To"
+                value={newLead.assignedTo}
+                onChange={e => setNewLead({ ...newLead, assignedTo: e.target.value })}
+                sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}
+              >
+                <MenuItem value="">Unassigned</MenuItem>
+                {members.map((member: any) => (
+                  <MenuItem key={member._id} value={member._id}>{member.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Button
               variant="contained" 
               fullWidth 
               onClick={handleCreateLead} 

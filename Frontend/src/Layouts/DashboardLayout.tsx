@@ -1,47 +1,58 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Box } from "@mui/material";
 import Sidebar from "../Components/Sidebar";
-//  import DashboardPage from "../Pages/Dashboard";
+import Header from "../Pages/Header"; // Agar header use karna hai toh
+import DashboardPage from "../Pages/Dashboard";
 import LeadsPage from "../Pages/Leads";
-// import AnalyticsPage from "../Pages/Analytics";
 import SalesTeamPage from "../Pages/SalesTeamPage";
 import SettingsPage from "../Pages/Settings";
 
 const DashboardLayout: React.FC = () => {
+  const SIDEBAR_WIDTH = "270px";
+
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", width: "100vw" }}>
-      {/* Sidebar Container: Desktop par 270px jagah fix rakhta hai */}
+    <Box sx={{ display: "flex", minHeight: "100vh", width: "100vw", overflowX: "hidden" }}>
+      {/* 1. SIDEBAR (Fixed for Desktop) */}
       <Box 
         component="nav" 
         sx={{ 
-          width: { md: "270px" }, 
+          width: { md: SIDEBAR_WIDTH }, 
           flexShrink: 0,
-          display: { xs: "none", md: "block" } 
+          // Sidebar component ke andar drawer logic honi chahiye mobile ke liye
         }}
       >
         <Sidebar />
       </Box>
 
-      {/* Main Content: Sidebar ke baad bachi hui jagah leta hai */}
+      {/* 2. MAIN CONTENT AREA */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          backgroundColor: "var(--primary-bg, #f8fafc)",
+          backgroundColor: "#f8fafc",
           minHeight: "100vh",
-          // Mobile par full width, desktop par bachi hui width
-          width: { xs: "100%", md: "calc(100% - 270px)" },
-          paddingTop: { xs: "70px", md: 0 },
-          transition: "background-color 0.3s ease",
+          // Desktop par sidebar ki width jitni margin left
+          ml: { md: 0 }, 
+          width: { xs: "100%", md: `calc(100% - ${SIDEBAR_WIDTH})` },
+          // Mobile header ke liye padding top (agar mobile top bar hai)
+          pt: { xs: "70px", md: "20px" }, 
+          px: { xs: 2, md: 4 },
+          pb: 4,
+          transition: "all 0.3s ease",
         }}
       >
         <Routes>
-           {/* <Route index element={<DashboardPage />} /> */}
+          {/* Dashboard default page */}
+          <Route index element={<DashboardPage />} />
+          
+          {/* Nested Sub-pages */}
           <Route path="leads" element={<LeadsPage />} />
-          {/* <Route path="analytics" element={<AnalyticsPage />} /> */}
           <Route path="sales-team" element={<SalesTeamPage />} />
           <Route path="settings" element={<SettingsPage />} />
+
+          {/* Fallback for wrong sub-routes */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Box>
     </Box>

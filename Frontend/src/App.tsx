@@ -8,27 +8,30 @@ import ResetPassword from "./auth/ResetPassword";
 
 import DashboardLayout from "./Layouts/DashboardLayout";
 import { ProfileProvider } from "./Components/ProfileContext";
+import { ThemeProvider } from "./Components/ThemeContext";
 
 const App: React.FC = () => {
   return (
-    <ProfileProvider>
-      <Routes>
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/signin" replace />} />
+    <ThemeProvider>
+      <ProfileProvider>
+        <Routes>
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to="/signin" replace />} />
 
-        {/* Auth routes */}
-        <Route path="/signin" element={<Signin />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password/:token" element={<ResetPassword />} />
+          {/* Auth routes */}
+          <Route path="/signin" element={<Signin />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-        {/* Dashboard (protected layout inside) */}
-        <Route path="/dashboard/*" element={<DashboardLayout />} />
+          {/* Dashboard (protected layout inside) */}
+          <Route path="/dashboard/*" element={<DashboardLayout />} />
 
-        {/* Fallback route */}
-        <Route path="*" element={<Navigate to="/signin" replace />} />
-      </Routes>
-    </ProfileProvider>
+          {/* Fallback route */}
+          <Route path="*" element={<Navigate to="/signin" replace />} />
+        </Routes>
+      </ProfileProvider>
+    </ThemeProvider>
   );
 };
 
