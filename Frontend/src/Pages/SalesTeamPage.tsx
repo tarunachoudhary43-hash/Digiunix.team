@@ -2,12 +2,24 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { 
   Users, Trash2, Plus, Layers, CheckCircle, ChevronDown, ChevronUp, 
-  Target, TrendingUp, X, Settings
+  Target, TrendingUp, X, Settings, Trophy
 } from "lucide-react";
-import { Typography, useMediaQuery, useTheme } from "@mui/material";
+import { Typography, useMediaQuery, useTheme, LinearProgress, Box, Stack, IconButton } from "@mui/material";
 
-interface Member { _id: string; name: string; role: string; target: number; }
-interface Team { _id: string; teamName: string; department: string; members: Member[]; }
+interface Member { 
+  _id: string; 
+  name: string; 
+  role: string; 
+  target: number; 
+  leadsCompleted: number; // Added field
+}
+
+interface Team { 
+  _id: string; 
+  teamName: string; 
+  department: string; 
+  members: Member[]; 
+}
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/api/sales-teams`;
 
@@ -39,7 +51,6 @@ const SalesTeamPage: React.FC = () => {
       });
       setTeams(res.data);
     } catch (err) {
-      console.error(err);
       showToast("Error fetching teams");
     }
   };
@@ -48,10 +59,24 @@ const SalesTeamPage: React.FC = () => {
     fetchTeams();
   }, []);
 
+  // NEW: Handle Lead Completion
+  const handleCompleteLead = async (teamId: string, memberId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.patch(`${API_BASE}/${teamId}/member/${memberId}/complete`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Update local state with updated team data
+      setTeams(teams.map(t => t._id === teamId ? res.data : t));
+      showToast("Lead marked as complete! Performance updated.");
+    } catch (err) {
+      showToast("Failed to update performance");
+    }
+  };
+
   const handleCreateTeam = async () => {
     const finalDept = isCustomDept ? customDeptName : newTeam.dept;
     if (!newTeam.name || !finalDept) return;
-
     try {
       const token = localStorage.getItem("token");
       const res = await axios.post(`${API_BASE}/create`, {
@@ -62,15 +87,10 @@ const SalesTeamPage: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setTeams([...teams, res.data]);
-      if (isCustomDept && !departments.includes(customDeptName)) {
-        setDepartments([...departments, customDeptName]);
-      }
       setNewTeam({ name: "", dept: "" });
-      setIsCustomDept(false);
       setShowCreateForm(false);
-      showToast("Team created successfully!");
+      showToast("Team created!");
     } catch (err) {
-      console.error(err);
       showToast("Error creating team");
     }
   };
@@ -89,559 +109,129 @@ const SalesTeamPage: React.FC = () => {
       });
       setTeams(teams.map(t => t._id === teamId ? res.data : t));
       setMemberInputs({ ...memberInputs, [teamId]: {} });
-      showToast("Member added successfully!");
+      showToast("Member added!");
     } catch (err) {
-      console.error(err);
       showToast("Error adding member");
     }
   };
 
-  const handleDeleteMember = async (teamId: string, memberId: string) => {
-    if (!window.confirm("Remove this member?")) return;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`${API_BASE}/${teamId}/member/${memberId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setTeams(teams.map(t => t._id === teamId ? { ...t, members: t.members.filter(m => m._id !== memberId) } : t));
-      showToast("Member removed.");
-    } catch (err) {
-      console.error(err);
-      showToast("Error deleting member");
-    }
-  };
-
-  const handleDeleteTeam = async (teamId: string) => {
-    if (!window.confirm("Delete this team?")) return;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`${API_BASE}/${teamId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setTeams(teams.filter(t => t._id !== teamId));
-      showToast("Team deleted successfully!");
-    } catch (err) {
-      console.error(err);
-      showToast("Error deleting team");
-    }
-  };
-
+  // Stats Calculation
   const totalMembers = teams.reduce((acc, t) => acc + t.members.length, 0);
-  const totalTargetValue = teams.reduce((acc, t) => acc + t.members.reduce((mAcc, m) => mAcc + m.target, 0), 0);
-
-  // Responsive styles
-  const containerStyle: React.CSSProperties = {
-    padding: isMobile ? "20px 12px" : isTablet ? "30px 16px" : "40px 20px",
-    background: "#FFFFFF",
-    minHeight: "100vh",
-    marginTop: isMobile ? "60px" : "0"
-  };
-
-  const headerContainerStyle: React.CSSProperties = {
-    maxWidth: "1100px",
-    margin: "0 auto 30px auto",
-    display: "flex",
-    flexDirection: isMobile ? "column" : "row",
-    justifyContent: "space-between",
-    alignItems: isMobile ? "flex-start" : "center",
-    gap: isMobile ? "15px" : "0"
-  };
-
-  const statsGrid: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : isTablet ? "repeat(2, 1fr)" : "repeat(3, 1fr)",
-    gap: isMobile ? "12px" : "20px",
-    maxWidth: "1100px",
-    margin: "0 auto 40px auto"
-  };
-
-  const createBtnMain: React.CSSProperties = {
-    border: "none",
-    padding: isMobile ? "8px 16px" : "10px 24px",
-    borderRadius: "10px",
-    fontWeight: 700,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    fontSize: isMobile ? "14px" : "16px",
-    width: isMobile ? "100%" : "auto",
-    justifyContent: "center"
-  };
-
-  const topCardStyle: React.CSSProperties = {
-    maxWidth: "1100px",
-    margin: "0 auto 25px auto",
-    padding: isMobile ? "16px" : "25px"
-  };
-
-  const topInputContainerStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: isMobile ? "column" : "row",
-    gap: isMobile ? "12px" : "15px"
-  };
-
-  const topInput: React.CSSProperties = {
-    flex: 1,
-    padding: isMobile ? "10px" : "12px",
-    borderRadius: "8px",
-    border: "1px solid var(--border)",
-    background: "var(--card-bg)",
-    color: "var(--text-base)",
-    fontSize: isMobile ? "14px" : "16px"
-  };
-
-  const teamCard: React.CSSProperties = {
-    marginBottom: "15px",
-    overflow: "hidden",
-    padding: 0
-  };
-
-  const teamHeader: React.CSSProperties = {
-    padding: isMobile ? "14px 16px" : "18px 25px",
-    display: "flex",
-    flexDirection: isMobile ? "column" : "row",
-    justifyContent: "space-between",
-    alignItems: isMobile ? "flex-start" : "center",
-    cursor: "pointer",
-    gap: isMobile ? "12px" : "0"
-  };
-
-  const teamInfoStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    width: isMobile ? "100%" : "auto"
-  };
-
-  const delTeamBtn: React.CSSProperties = {
-    background: "var(--primary-bg)",
-    border: "1px solid var(--border)",
-    color: "var(--danger)",
-    padding: isMobile ? "6px 12px" : "6px 14px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "12px",
-    fontWeight: 600,
-    width: isMobile ? "100%" : "auto"
-  };
-
-  const tableContainerStyle: React.CSSProperties = {
-    padding: isMobile ? "12px" : "20px",
-    borderTop: "1px solid var(--border)",
-    overflowX: "auto"
-  };
-
-  const inlineInput: React.CSSProperties = {
-    width: isMobile ? "100%" : "90%",
-    padding: isMobile ? "6px" : "8px",
-    borderRadius: "6px",
-    border: "1px solid var(--border)",
-    background: "var(--card-bg)",
-    fontSize: isMobile ? "13px" : "14px"
-  };
+  const totalCompleted = teams.reduce((acc, t) => acc + t.members.reduce((mAcc, m) => mAcc + (m.leadsCompleted || 0), 0), 0);
 
   return (
-    <div style={containerStyle}>
-      {notification && (
-        <div style={{
-          ...toastStyle,
-          right: isMobile ? "10px" : "20px",
-          left: isMobile ? "10px" : "auto",
-          fontSize: isMobile ? "13px" : "14px"
-        }}>
-          <CheckCircle size={18} /> {notification}
-        </div>
-      )}
+    <div style={{ padding: isMobile ? "20px 12px" : "40px 20px", background: "#f8fafc", minHeight: "100vh" }}>
+      {notification && <div style={toastStyle}><CheckCircle size={18} /> {notification}</div>}
 
       {/* HEADER */}
-      <div style={headerContainerStyle}>
-        <div>
-          <Typography 
-            variant="h4" 
-            fontWeight={800}
-            sx={{ fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' } }}
-          >
-            Sales Squad <span style={{ color: 'var(--primary)' }}>Commander</span>
-          </Typography>
-          <p className="text-muted" style={{ fontSize: isMobile ? "13px" : "14px" }}>
-            Manage your teams and custom departments.
-          </p>
-        </div>
-        <button 
-          onClick={() => setShowCreateForm(!showCreateForm)} 
-          className="primary" 
-          style={showCreateForm ? { ...createBtnMain, backgroundColor: "var(--danger)" } : createBtnMain}
-        >
-          {showCreateForm ? <X size={18}/> : <Plus size={18}/>}
-          {showCreateForm ? "Cancel" : "Create Squad"}
+      <Box sx={{ maxWidth: "1100px", margin: "0 auto 30px auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+        <Box>
+          <Typography variant="h4" fontWeight={800}>Sales Team <span style={{ color: '#6366f1' }}>Performance</span></Typography>
+          <Typography variant="body2" color="text.secondary">Track squad targets and lead conversions in real-time.</Typography>
+        </Box>
+        <button onClick={() => setShowCreateForm(!showCreateForm)} style={createBtnStyle}>
+          {showCreateForm ? <X size={18}/> : <Plus size={18}/>} {showCreateForm ? "Cancel" : "New Squad"}
         </button>
+      </Box>
+
+      {/* STATS */}
+      <div style={statsGridStyle(isMobile, isTablet)}>
+        <StatCard title="Total Squads" value={teams.length} icon={<Layers size={20} color="#6366f1"/>} />
+        <StatCard title="Total Members" value={totalMembers} icon={<Users size={20} color="#10b981"/>} />
+        <StatCard title="Total Conversions" value={totalCompleted} icon={<Trophy size={20} color="#f59e0b"/>} />
       </div>
-
-      {/* STAT CARDS */}
-      <div style={statsGrid}>
-        <StatCard 
-          title="Total Teams" 
-          value={teams.length} 
-          icon={<Layers size={20} color="var(--primary)"/>}
-          isMobile={isMobile}
-        />
-        <StatCard 
-          title="Total Members" 
-          value={totalMembers} 
-          icon={<Users size={20} color="var(--success)"/>}
-          isMobile={isMobile}
-        />
-        <StatCard 
-          title="Total Target" 
-          value={`$${totalTargetValue.toLocaleString()}`} 
-          icon={<Target size={20} color="var(--warning)"/>}
-          isMobile={isMobile}
-        />
-      </div>
-
-      {/* CREATE FORM */}
-      {showCreateForm && (
-        <div className="card shadow-md" style={topCardStyle}>
-          <h2 style={{ 
-            fontSize: isMobile ? "16px" : "18px", 
-            marginBottom: "15px", 
-            display: "flex", 
-            alignItems: "center", 
-            gap: "10px" 
-          }}>
-            <Settings size={18} /> Initialize New Team
-          </h2>
-          <div style={topInputContainerStyle}>
-            <input 
-              style={topInput} 
-              placeholder="Team Name..." 
-              value={newTeam.name} 
-              onChange={e => setNewTeam({...newTeam, name: e.target.value})} 
-            />
-            
-            {!isCustomDept ? (
-              <select 
-                style={topInput} 
-                onChange={e => e.target.value === "ADD_NEW" ? setIsCustomDept(true) : setNewTeam({ ...newTeam, dept: e.target.value })}
-              >
-                <option value="">Select Department</option>
-                {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-                <option value="ADD_NEW" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>+ Add Custom Dept</option>
-              </select>
-            ) : (
-              <input 
-                style={topInput} 
-                placeholder="Type Dept Name..." 
-                autoFocus 
-                onChange={e => setCustomDeptName(e.target.value)} 
-              />
-            )}
-
-            <button 
-              onClick={handleCreateTeam} 
-              className="primary" 
-              style={{ 
-                padding: isMobile ? "10px 16px" : "10px 24px",
-                fontSize: isMobile ? "14px" : "16px",
-                width: isMobile ? "100%" : "auto"
-              }}
-            >
-              Create
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* TEAMS LIST */}
-      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+      <Box sx={{ maxWidth: "1100px", margin: "0 auto" }}>
         {teams.map(team => (
-          <div key={team._id} className="card shadow-sm" style={teamCard}>
-            <div 
-              style={teamHeader} 
-              onClick={() => setExpandedTeams(prev => ({ ...prev, [team._id]: !prev[team._id] }))}
-            >
-              <div style={teamInfoStyle}>
-                <div style={{
-                  ...teamAvatar,
-                  width: isMobile ? "36px" : "40px",
-                  height: isMobile ? "36px" : "40px",
-                  fontSize: isMobile ? "14px" : "16px"
-                }}>
-                  {team.teamName ? team.teamName.charAt(0).toUpperCase() : 'T'}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ 
-                    margin: 0, 
-                    fontSize: isMobile ? "15px" : "16px" 
-                  }}>
-                    {team.teamName}
-                  </h3>
-                  <span style={{ 
-                    fontSize: isMobile ? "11px" : "12px", 
-                    color: "var(--primary)", 
-                    fontWeight: 700 
-                  }}>
-                    {team.department}
-                  </span>
-                </div>
-                {!isMobile && (expandedTeams[team._id] ? <ChevronUp size={16}/> : <ChevronDown size={16}/> )}
-              </div>
-              <button 
-                onClick={(e) => {e.stopPropagation(); handleDeleteTeam(team._id)}} 
-                style={delTeamBtn}
-              >
-                Delete
-              </button>
+          <div key={team._id} style={teamCardStyle}>
+            <div style={teamHeaderStyle} onClick={() => setExpandedTeams(prev => ({ ...prev, [team._id]: !prev[team._id] }))}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <div style={avatarStyle}>{team.teamName.charAt(0)}</div>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700}>{team.teamName}</Typography>
+                  <Typography variant="caption" color="primary" fontWeight={700}>{team.department}</Typography>
+                </Box>
+              </Stack>
+              {expandedTeams[team._id] ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
             </div>
 
             {expandedTeams[team._id] && (
-              <div style={tableContainerStyle}>
-                {isMobile ? (
-                  // Mobile Card View
-                  <div>
-                    {/* Add Member Form */}
-                    <div style={{
-                      background: "var(--primary-bg)",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      marginBottom: "12px"
-                    }}>
-                      <h4 style={{ margin: "0 0 10px 0", fontSize: "14px" }}>Add New Member</h4>
-                      <input 
-                        style={{ ...inlineInput, marginBottom: "8px" }} 
-                        placeholder="Name"
-                        value={memberInputs[team._id]?.name || ""} 
-                        onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], name: e.target.value}})} 
-                      />
-                      <input 
-                        style={{ ...inlineInput, marginBottom: "8px" }} 
-                        placeholder="Role"
-                        value={memberInputs[team._id]?.role || ""} 
-                        onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], role: e.target.value}})} 
-                      />
-                      <input 
-                        style={{ ...inlineInput, marginBottom: "8px" }} 
-                        placeholder="Target"
-                        value={memberInputs[team._id]?.target || ""} 
-                        onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], target: e.target.value}})} 
-                      />
-                      <button 
-                        onClick={() => handleAddMember(team._id)} 
-                        className="primary" 
-                        style={{ padding: "8px 16px", width: "100%", fontSize: "14px" }}
-                      >
-                        Add Member
-                      </button>
-                    </div>
+              <Box sx={{ p: isMobile ? 2 : 3, borderTop: "1px solid #e2e8f0" }}>
+                {/* Add Member Row */}
+                <Box sx={{ display: "flex", gap: 1, mb: 3, flexWrap: "wrap" }}>
+                  <input style={inputStyle} placeholder="Name" value={memberInputs[team._id]?.name || ""} onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], name: e.target.value}})} />
+                  <input style={inputStyle} placeholder="Role" value={memberInputs[team._id]?.role || ""} onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], role: e.target.value}})} />
+                  <input style={inputStyle} type="number" placeholder="Target" value={memberInputs[team._id]?.target || ""} onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], target: e.target.value}})} />
+                  <button onClick={() => handleAddMember(team._id)} style={addBtnStyle}>Add</button>
+                </Box>
 
-                    {/* Members List */}
-                    {team.members.map(m => (
-                      <div 
-                        key={m._id} 
-                        style={{
-                          background: "var(--card-bg)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          padding: "12px",
-                          marginBottom: "8px"
-                        }}
-                      >
-                        <div style={{ marginBottom: "8px" }}>
-                          <strong style={{ fontSize: "14px" }}>{m.name}</strong>
-                        </div>
-                        <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "4px" }}>
-                          Role: {m.role}
-                        </div>
-                        <div style={{ 
-                          display: "flex", 
-                          justifyContent: "space-between", 
-                          alignItems: "center",
-                          marginTop: "8px"
-                        }}>
-                          <span style={{ color: "var(--success)", fontWeight: 700, fontSize: "14px" }}>
-                            Target: {m.target}
-                          </span>
-                          <Trash2 
-                            size={18} 
-                            color="var(--danger)" 
-                            onClick={() => handleDeleteMember(team._id, m._id)} 
-                            style={{cursor:'pointer'}}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  // Desktop Table View
-                  <table style={{ width: "100%", minWidth: "600px" }}>
-                    <thead>
-                      <tr>
-                        <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Name</th>
-                        <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Role</th>
-                        <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Target</th>
-                        <th style={{ fontSize: isTablet ? "13px" : "14px" }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr style={{ background: "var(--primary-bg)" }}>
-                        <td>
-                          <input 
-                            style={inlineInput} 
-                            placeholder="Name"
-                            value={memberInputs[team._id]?.name || ""} 
-                            onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], name: e.target.value}})} 
-                          />
-                        </td>
-                        <td>
-                          <input 
-                            style={inlineInput} 
-                            placeholder="Role"
-                            value={memberInputs[team._id]?.role || ""} 
-                            onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], role: e.target.value}})} 
-                          />
-                        </td>
-                        <td>
-                          <input 
-                            style={inlineInput} 
-                            placeholder="Target"
-                            value={memberInputs[team._id]?.target || ""} 
-                            onChange={e => setMemberInputs({...memberInputs, [team._id]: {...memberInputs[team._id], target: e.target.value}})} 
-                          />
-                        </td>
-                        <td>
-                          <button 
-                            onClick={() => handleAddMember(team._id)} 
-                            className="primary" 
-                            style={{ padding: "6px 12px", fontSize: isTablet ? "13px" : "14px" }}
-                          >
-                            Add
-                          </button>
-                        </td>
-                      </tr>
-                      {team.members.map(m => (
-                        <tr key={m._id}>
-                          <td style={{ fontSize: isTablet ? "13px" : "14px" }}>{m.name}</td>
-                          <td style={{ fontSize: isTablet ? "13px" : "14px" }}>{m.role}</td>
-                          <td style={{ 
-                            color: "var(--success)", 
-                            fontWeight: 700,
-                            fontSize: isTablet ? "13px" : "14px"
-                          }}>
-                            {m.target}
+                {/* Performance Table */}
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", color: "#64748b", fontSize: "12px" }}>
+                      <th style={{ paddingBottom: "10px" }}>MEMBER</th>
+                      <th style={{ paddingBottom: "10px" }}>PROGRESS</th>
+                      <th style={{ paddingBottom: "10px" }}>ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {team.members.map(m => {
+                      const progress = Math.min(((m.leadsCompleted || 0) / m.target) * 100, 100);
+                      return (
+                        <tr key={m._id} style={{ borderTop: "1px solid #f1f5f9" }}>
+                          <td style={{ py: 2 }}>
+                            <Typography variant="body2" fontWeight={600}>{m.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">{m.role}</Typography>
+                          </td>
+                          <td style={{ width: isMobile ? "100px" : "250px", padding: "10px 0" }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Box sx={{ width: "100%", mr: 1 }}>
+                                <LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 5, bgcolor: "#f1f5f9", "& .MuiLinearProgress-bar": { bgcolor: progress >= 100 ? "#10b981" : "#6366f1" } }} />
+                              </Box>
+                              <Typography variant="caption" fontWeight={700}>{Math.round(progress)}%</Typography>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary">{m.leadsCompleted || 0} / {m.target} leads</Typography>
                           </td>
                           <td>
-                            <Trash2 
-                              size={16} 
-                              color="var(--danger)" 
-                              onClick={() => handleDeleteMember(team._id, m._id)} 
-                              style={{cursor:'pointer'}}
-                            />
+                            <button onClick={() => handleCompleteLead(team._id, m._id)} style={completeBtnStyle}>
+                              <CheckCircle size={14} /> {isMobile ? "" : "Complete"}
+                            </button>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </Box>
             )}
           </div>
         ))}
-      </div>
+      </Box>
     </div>
   );
 };
 
-// --- SUB-COMPONENTS & STYLES ---
-const StatCard = ({ 
-  title, 
-  value, 
-  icon, 
-  isMobile 
-}: { 
-  title: string, 
-  value: string | number, 
-  icon: React.ReactNode,
-  isMobile: boolean 
-}) => (
-  <div className="card shadow-sm" style={{
-    padding: isMobile ? "16px" : "24px"
-  }}>
-    <div 
-      className="text-muted" 
-      style={{ 
-        fontSize: isMobile ? "12px" : "14px", 
-        fontWeight: 600, 
-        marginBottom: "8px" 
-      }}
-    >
-      {title}
-    </div>
-    <div style={{ 
-      fontSize: isMobile ? "22px" : "28px", 
-      fontWeight: 800, 
-      marginBottom: "15px" 
-    }}>
-      {value}
-    </div>
-    <div style={{ 
-      display: "flex", 
-      alignItems: "center", 
-      gap: "10px",
-      flexWrap: "wrap"
-    }}>
-      <div style={{
-        width: isMobile ? "32px" : "36px",
-        height: isMobile ? "32px" : "36px",
-        borderRadius: "10px",
-        background: "var(--primary-bg)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center"
-      }}>
-        {icon}
-      </div>
-      <div style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "4px", 
-        color: "var(--success)", 
-        fontSize: isMobile ? "11px" : "13px", 
-        fontWeight: 600 
-      }}>
-        <TrendingUp size={isMobile ? 12 : 14} /> 0% 
-        <span className="text-muted" style={{ fontWeight: 400 }}>vs last month</span>
-      </div>
+// --- STYLES ---
+const teamCardStyle: React.CSSProperties = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "16px", overflow: "hidden" };
+const teamHeaderStyle: React.CSSProperties = { padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" };
+const avatarStyle: React.CSSProperties = { width: "40px", height: "40px", background: "#6366f1", color: "#fff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800 };
+const inputStyle: React.CSSProperties = { padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", flex: 1, minWidth: "120px" };
+const addBtnStyle: React.CSSProperties = { padding: "8px 20px", background: "#1e293b", color: "#fff", border: "none", borderRadius: "6px", fontWeight: 600, cursor: "pointer" };
+const completeBtnStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
+const createBtnStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", background: "#6366f1", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer" };
+const toastStyle: React.CSSProperties = { position: 'fixed', top: '20px', right: '20px', background: '#10b981', color: 'white', padding: '12px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px', zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' };
+const statsGridStyle = (isMobile: boolean, isTablet: boolean): React.CSSProperties => ({ display: "grid", gridTemplateColumns: isMobile ? "1fr" : isTablet ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: "20px", maxWidth: "1100px", margin: "0 auto 40px auto" });
+
+const StatCard = ({ title, value, icon }: { title: string, value: string | number, icon: React.ReactNode }) => (
+  <div style={{ background: "#fff", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+    <Typography variant="caption" color="text.secondary" fontWeight={600}>{title}</Typography>
+    <Typography variant="h5" fontWeight={800} sx={{ my: 1 }}>{value}</Typography>
+    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div style={{ padding: "8px", background: "#f5f3ff", borderRadius: "8px" }}>{icon}</div>
+      <Typography variant="caption" color="success.main" fontWeight={700}><TrendingUp size={12}/> Active</Typography>
     </div>
   </div>
 );
-
-const toastStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: '20px',
-  right: '20px',
-  background: 'var(--success)',
-  color: 'white',
-  padding: '12px 24px',
-  borderRadius: '12px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '10px',
-  zIndex: 1000,
-  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-};
-
-const teamAvatar: React.CSSProperties = {
-  width: "40px",
-  height: "40px",
-  background: "var(--primary)",
-  color: "white",
-  borderRadius: "10px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: 800,
-  flexShrink: 0
-};
 
 export default SalesTeamPage;
