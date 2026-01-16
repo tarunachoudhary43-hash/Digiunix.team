@@ -7,6 +7,7 @@ import {
 } from "@mui/material";
 import {
   FileSpreadsheet, Search, Trash2, X, Edit3, Eye, Phone, Archive, Copy, RotateCcw
+  FileSpreadsheet,  Search, Trash2, X, Edit3, Eye, Phone, Archive, Copy, RotateCcw
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -173,6 +174,20 @@ const LeadsPage: React.FC = () => {
           >
             Export to Excel
           </Button>
+            {isMobile ? "Export" : "Export"}
+          </Button>
+          {/* <Button 
+            variant="contained" 
+            startIcon={<Plus size={18} />} 
+            onClick={() => setShowAddModal(true)} 
+            sx={{ 
+              textTransform: 'none', 
+              borderRadius: '8px',
+              fontSize: { xs: '0.8rem', sm: '0.875rem' }
+            }}
+          >
+            {isMobile ? "New" : "New Lead"}
+          </Button> */}
         </Stack>
       </Stack>
 
