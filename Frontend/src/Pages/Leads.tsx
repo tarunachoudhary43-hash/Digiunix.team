@@ -6,7 +6,7 @@ import {
   useMediaQuery, useTheme, Card, CardContent
 } from "@mui/material";
 import {
-  FileSpreadsheet, Plus, Search, Trash2, X, Edit3, Eye, Phone, Archive, Copy, RotateCcw
+  FileSpreadsheet,  Search, Trash2, X, Edit3, Eye, Phone, Archive, Copy, RotateCcw
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
