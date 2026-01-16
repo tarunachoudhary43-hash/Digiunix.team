@@ -181,7 +181,7 @@ const LeadsPage: React.FC = () => {
           >
             {isMobile ? "Export" : "Export"}
           </Button>
-          <Button 
+          {/* <Button 
             variant="contained" 
             startIcon={<Plus size={18} />} 
             onClick={() => setShowAddModal(true)} 
@@ -192,7 +192,7 @@ const LeadsPage: React.FC = () => {
             }}
           >
             {isMobile ? "New" : "New Lead"}
-          </Button>
+          </Button> */}
         </Stack>
       </Stack>
 
